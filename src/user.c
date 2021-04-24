@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../headers/user.h"
+#include "user.h"
 
 char *insert_user(sqlite3 *db, struct User *user)
 {

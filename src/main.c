@@ -4,6 +4,10 @@
 sqlite3 *open_database(const char * const path);
 char *init_tables(sqlite3 * db);
 
+#ifndef LOG_ENABLED
+#define LOG_ENABLED 0
+#endif
+
 #define debug_print(...)                  \
 	do                                    \
 	{                                     \

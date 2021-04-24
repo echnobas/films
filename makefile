@@ -1,14 +1,38 @@
-.PHONY     : debug
-debug      : build_debug run
-all        : build run
-build      :
-	@clang -o ./bin/main -D LOG_ENABLED=0 -l sqlite3 src/*.c
+.PHONY: run
+CC         := gcc
+DEPENDS    := sqlite3
+SRC        := src
+INCLUDE    := include
+OBJ        := obj
+BIN        := bin
+CFLAGS     := -g -I$(INCLUDE) -l $(DEPENDS)
+LDFLAGS    := -l sqlite3
+NAME       := main
+SOURCES    := $(wildcard $(SRC)/*.c)
+OBJECTS    := $(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(SOURCES))
 
-build_debug:
-	@clang -o ./bin/main -D LOG_ENABLED=1 -l sqlite3 src/*.c
+run: $(BIN)/$(NAME)
+	@$(BIN)/$(NAME)
 
-run        :
-	@bin/main
+$(BIN)/$(NAME): $(OBJECTS)
+	$(CC) $(LDFLAGS) $^ -o $(BIN)/$(NAME)
 
-clean      : bin/main
-	rm -f bin/main
+$(OBJ)/%.o: $(SRC)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	@echo "[CLEAN] Cleaning obj and bin..."
+	@rm -f $(OBJ)/*
+	@rm -f $(BIN)/$(NAME)
+
+show:
+	@echo $(CC)
+	@echo $(DEPENDS)
+	@echo $(SRC)
+	@echo $(INCLUDE)
+	@echo $(OBJ)
+	@echo $(BIN)
+	@echo $(CFLAGS)
+	@echo $(NAME)
+	@echo $(SOURCES)
+	@echo $(OBJECTS)
