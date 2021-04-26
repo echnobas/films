@@ -5,7 +5,7 @@
 
 #include "user.h"
 
-char *insert_user(sqlite3 *db, struct User *user)
+char *insert_user(sqlite3 * db, struct User * user)
 {
 	char sql[400];
 	char *err_msg = NULL;

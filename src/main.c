@@ -4,12 +4,17 @@
 #include <string.h>
 #include <signal.h>
 #include <sysexits.h>
+#include <assert.h>
+
+#include "user.h"
 
 sqlite3 *open_database(const char * const path);
-char *init_tables(sqlite3 * db);
+char * init_tables(sqlite3 * db);
 char * read_f(FILE * f);
 static void sigint(int _);
-static const char* HELP = "whatever"
+int new_user();
+
+static const char * HELP = "whatever"
 "h";
 
 #ifndef LOG_ENABLED
@@ -45,15 +50,46 @@ int main()
 		char * command = read_f(stdin);
 		debug_print("RAW: %s; LEN: %d;\n", command, strlen(command));
 		if (strcmp(command, "quit") == 0)
+		{
+			free(command);
 			break;
+		}
 		else if (strcmp(command, "new") == 0)
-			status_code = EX_USAGE; /* TODO: new_user; unimplemented - normally something like `status_code = new_user(...)` */
+			// status_code = EX_USAGE; /* TODO: new_user; unimplemented - normally something like `status_code = new_user(...)` */
+			status_code = new_user(db);
 		else
 			status_code = EX_USAGE;
 		free(command);
 	}
     sqlite3_close(db);
 	return status_code;
+}
+
+int new_user(sqlite3 * db)
+{
+	/* Theoretically these pointers should always be NULL or point to valid memory [read_f], but I wouldn't put it past C */
+	char * username = NULL;
+	char * password = NULL;
+	struct User user;
+
+	printf("Enter username\n> ");
+	fflush(stdout);
+	username = read_f(stdin);
+
+	printf("Enter password for new account `%s`\n> ", username);
+	fflush(stdout);
+	password = read_f(stdin);
+
+	if (!username || !password)
+		return EXIT_FAILURE;
+
+	/* Can't wait to debug some null pointers! woohoo! */
+	strncpy(user.username, username, 20);
+	strncpy(user.password, password, 20);
+	insert_user(db, &user);
+	/* I really hope this doesn't invalidate something later... */
+	free(username);
+	free(password);
 }
 
 static void sigint(int _)
@@ -68,11 +104,25 @@ static void sigint(int _)
 	fflush(stdout);
 }
 
+/*
+	26/04/21
+	---------------------------
+	for some reason valgrind doesn't like this function
+	FIXME
+	> ==6310== Conditional jump or move depends on uninitialised value(s)
+	==6310==    at 0x4A26DE1: getdelim (in /usr/lib/libc-2.33.so)
+	==6310==    by 0x1094ED: read_f (main.c:107)
+	==6310==    by 0x1092D9: main (main.c:49)
+	==6310==
+	---------------------------
+	27/04/21
+	Dear future me, please don't leave pointers uninitialized as they will point to arbitrary memory
+*/
 char * read_f(FILE * f)
 {
 	size_t n = 0;
-	int result;
-	char *buffer;
+	int result = 0;
+	char * buffer = NULL;
 	result = getline(&buffer, &n, f);
 	if (result < 0)
 		return NULL;
@@ -85,22 +135,23 @@ char * read_f(FILE * f)
 
 sqlite3 * open_database(const char * const path)
 {
-	sqlite3 *db;
-	int rc;
+	sqlite3 * db = NULL;
+	int rc = 0;
 	rc = sqlite3_open(path, &db);
 	if (rc != SQLITE_OK)
 	{
 		debug_print("ERROR! Can't open database: %s\n", sqlite3_errmsg(db));
 		return NULL;
 	}
+	assert(db != NULL);
 	debug_print("LOG! Opened database successfully!\n");
 	return db;
 }
 
 char * init_tables(sqlite3 * db)
 {
-	char *sql;
-	char *err_msg = NULL;
+	char * sql = NULL;
+	char * err_msg = NULL;
 	sql = "CREATE TABLE users("
 		  "id 	  INTEGER   PRIMARY KEY,"
 		  "username TEXT	NOT NULL,"
