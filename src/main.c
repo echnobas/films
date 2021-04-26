@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <sysexits.h>
 #include <assert.h>
+#include <openssl/sha.h>
 
 #include "user.h"
 
@@ -13,6 +14,7 @@ char * init_tables(sqlite3 * db);
 char * read_f(FILE * f);
 static void sigint(int _);
 int new_user();
+unsigned char * hash_password(char * input);
 
 static const char * HELP = "whatever"
 "h";
@@ -55,7 +57,6 @@ int main()
 			break;
 		}
 		else if (strcmp(command, "new") == 0)
-			// status_code = EX_USAGE; /* TODO: new_user; unimplemented - normally something like `status_code = new_user(...)` */
 			status_code = new_user(db);
 		else
 			status_code = EX_USAGE;
@@ -65,11 +66,26 @@ int main()
 	return status_code;
 }
 
+
+unsigned char * hash_password(char * input)
+{
+	int length = strlen(input);
+	SHA256_CTX ctx;
+	unsigned char * out = malloc(sizeof(unsigned char) * SHA256_DIGEST_LENGTH);
+	if (!out)
+		return NULL;
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, (unsigned char *)input, length);
+	SHA256_Final(out, &ctx);
+	return out;
+}
+
 int new_user(sqlite3 * db)
 {
 	/* Theoretically these pointers should always be NULL or point to valid memory [read_f], but I wouldn't put it past C */
 	char * username = NULL;
 	char * password = NULL;
+	char * password_hash = NULL;
 	struct User user;
 
 	printf("Enter username\n> ");
@@ -81,15 +97,25 @@ int new_user(sqlite3 * db)
 	password = read_f(stdin);
 
 	if (!username || !password)
-		return EXIT_FAILURE;
+		return 1;
+
+	password_hash = hash_password(password);
+	if (!password_hash)
+		return 1;
 
 	/* Can't wait to debug some null pointers! woohoo! */
 	strncpy(user.username, username, 20);
-	strncpy(user.password, password, 20);
+	strncpy(user.password, password_hash, SHA256_DIGEST_LENGTH);
 	insert_user(db, &user);
+	debug_print("TRACE! Username: %s\n", user.username);
+	debug_print("TRACE! Password: ");
+	for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+		debug_print("%0x", user.password[i]);
+	debug_print("\n");
 	/* I really hope this doesn't invalidate something later... */
 	free(username);
 	free(password);
+	free(password_hash);
 }
 
 static void sigint(int _)
@@ -108,7 +134,7 @@ static void sigint(int _)
 	26/04/21
 	---------------------------
 	for some reason valgrind doesn't like this function
-	FIXME
+	FIXMEs
 	> ==6310== Conditional jump or move depends on uninitialised value(s)
 	==6310==    at 0x4A26DE1: getdelim (in /usr/lib/libc-2.33.so)
 	==6310==    by 0x1094ED: read_f (main.c:107)

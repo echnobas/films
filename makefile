@@ -1,12 +1,12 @@
 .PHONY: run
 CC         := gcc
-DEPENDS    := sqlite3
+DEPENDS    := -lsqlite3 -lssl -lcrypto
 SRC        := src
 INCLUDE    := include
 OBJ        := obj
 BIN        := bin
-CFLAGS     := -g -I$(INCLUDE) -l $(DEPENDS) -D LOG_ENABLED
-LDFLAGS    := -l sqlite3
+CFLAGS     := -g -I$(INCLUDE) $(DEPENDS) -D LOG_ENABLED
+LDFLAGS    := $(DEPENDS)
 NAME       := main
 SOURCES    := $(wildcard $(SRC)/*.c)
 OBJECTS    := $(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(SOURCES))
