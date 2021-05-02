@@ -223,8 +223,15 @@ char * read_f(FILE * f)
 	int result = 0;
 	char * buffer = NULL;
 	result = getline(&buffer, &n, f);
+	// If *lineptr is set to NULL and *n is set 0 before the call, then
+    //    getline() will allocate a buffer for storing the line.  This
+    //    buffer should be freed by the user program even if getline()
+    //    failed.
 	if (result < 0)
+	{
+		free(buffer);
 		return NULL;
+	}
 	/* Strip newline */
 	if (buffer[result - 1] == '\n') {
     	buffer[result - 1] = '\0';
