@@ -8,13 +8,16 @@
 #include <openssl/sha.h>
 
 #include "user.h"
+#define TRUE 1
+#define FALSE 0
 
 sqlite3 *open_database(const char * const path);
 char * init_tables(sqlite3 * db);
 char * read_f(FILE * f);
+struct User * login_user(sqlite3 * db, char * username, char * password);
+unsigned char * hash_password(char * input);
 static void sigint(int _);
 int new_user();
-unsigned char * hash_password(char * input);
 
 static const char * HELP = "whatever"
 "h";
@@ -58,6 +61,31 @@ int main()
 		}
 		else if (strcmp(command, "new") == 0)
 			status_code = new_user(db);
+		else if (strcmp(command, "login") == 0)
+		{
+			printf("Enter username\n> ");
+			char * username = read_f(stdin);
+			printf("Enter password\n> ");
+			char * password = read_f(stdin);
+			if (username == NULL || password == NULL)
+			{
+				if (password != NULL)
+					free(password);
+				if (username != NULL)
+					free(username);
+				free(command);
+				break;
+			}
+			struct User * user = login_user(db, username, password);
+			if (user != NULL)
+			{
+				printf("Success!!\n");
+				free(user);
+			}
+			free(username);
+			free(password);
+			fflush(stdout);
+		}
 		else
 			status_code = EX_USAGE;
 		free(command);
@@ -78,6 +106,51 @@ unsigned char * hash_password(char * input)
 	SHA256_Update(&ctx, (unsigned char *)input, length);
 	SHA256_Final(out, &ctx);
 	return out;
+}
+
+
+struct User * login_user(sqlite3 * db, char * username, char * password)
+{
+	sqlite3_stmt * stmt;
+	struct User * user = malloc(sizeof(struct User));
+	if (user == NULL)
+		return NULL;
+	strcpy(user->username, "\0\0");
+	memset(user->password, 0, 32);
+
+	if (sqlite3_prepare_v3(db, "SELECT * FROM users WHERE username = ?;", -1, 0, &stmt, NULL) != SQLITE_OK)
+		return NULL;
+	sqlite3_bind_text(stmt, 1, username, -1, NULL);
+	for(;;)
+	{
+		int rc = sqlite3_step(stmt);
+		if (rc == SQLITE_DONE)
+			break;
+		if (rc != SQLITE_ROW)
+			return NULL;
+		memcpy(user->username, sqlite3_column_text(stmt, 1), 20);
+		memcpy(user->password, sqlite3_column_blob(stmt, 2), 32);
+	}
+	sqlite3_finalize(stmt);
+	if (strcmp(user->username, "\0\0") == 0)
+	{
+		free(user);
+		return NULL;
+	}
+	unsigned char * password_hash = hash_password(password);
+	if (password_hash == NULL)
+	{
+		free(user);
+		return NULL;
+	}
+	if (memcmp(password_hash, user->password, 32) == 0)
+	{
+		free(password_hash);
+		return user;
+	}
+	free(password_hash);
+	free(user);
+	return NULL;
 }
 
 int new_user(sqlite3 * db)
@@ -181,7 +254,7 @@ char * init_tables(sqlite3 * db)
 	sql = "CREATE TABLE users("
 		  "id 	  INTEGER   PRIMARY KEY,"
 		  "username TEXT	NOT NULL,"
-		  "password TEXT	NOT NULL);";
+		  "password BLOB	NOT NULL);";
 	sqlite3_exec(db, sql, NULL, 0, &err_msg); // Ignore status code, we don't really need it
     return err_msg;
 }
